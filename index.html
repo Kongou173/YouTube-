@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Server YT-DL</title>
+    <style>
+        :root { --main: #0070f3; --bg: #fafafa; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); padding: 20px; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 500px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.2rem; text-align: center; color: var(--main); }
+        input, textarea, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box; }
+        textarea { height: 120px; font-family: monospace; font-size: 12px; }
+        button { background: var(--main); color: white; border: none; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        .status-item { font-size: 12px; margin-top: 5px; padding: 5px; border-radius: 4px; }
+        .online { background: #e6fffa; color: #2c7a7b; }
+        .offline { background: #fff5f5; color: #c53030; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🚀 メンシフDL (マルチサーバー版)</h1>
+    
+    <input type="text" id="url" placeholder="YouTube動画URL">
+    <textarea id="cookies" placeholder="ここにCookie(Netscape形式)を貼り付け"></textarea>
+    
+    <div style="display: flex; gap: 10px;">
+        <select id="quality">
+            <option value="1080">1080p</option>
+            <option value="720" selected>720p</option>
+            <option value="480">480p</option>
+        </select>
+        <select id="platform">
+            <option value="telegram">Telegram</option>
+            <option value="slack">Slack</option>
+        </select>
+    </div>
+
+    <button id="sendBtn" onclick="runRotation()">ダウンロード開始</button>
+    
+    <div id="log" style="margin-top:15px; font-size:13px; color:#666;"></div>
+</div>
+
+<script>
+    // 【重要】ここに契約・登録した全サービスのURLを並べる
+    const SERVERS = [
+        "https://your-app-render.onrender.com/download", // Render
+        "https://your-app-koyeb.koyeb.app/download",     // Koyeb
+        "https://your-app-fly.fly.dev/download"          // Fly.io
+    ];
+
+    async function runRotation() {
+        const btn = document.getElementById('sendBtn');
+        const log = document.getElementById('log');
+        const data = {
+            url: document.getElementById('url').value,
+            cookies_text: document.getElementById('cookies').value,
+            quality: document.getElementById('quality').value,
+            platform: document.getElementById('platform').value
+        };
+
+        if(!data.url || !data.cookies_text) return alert("URLとCookieが必要です");
+
+        btn.disabled = true;
+        log.innerHTML = "📡 利用可能なサーバーを探索中...";
+
+        for (let i = 0; i < SERVERS.length; i++) {
+            const url = SERVERS[i];
+            const sName = url.split('/')[2].split('.')[1] || "Server " + (i+1);
+            
+            log.innerHTML += `<div class="status-item">${sName} へリクエスト中...</div>`;
+
+            try {
+                // タイムアウト設定（10秒待ってダメなら次へ）
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    log.innerHTML = `<div class="status-item online">✅ ${sName} が受理しました！</div>`;
+                    btn.disabled = false;
+                    return; // 成功したので終了
+                } else {
+                    log.innerHTML += `<div class="status-item offline">❌ ${sName}: 制限またはエラー</div>`;
+                }
+            } catch (e) {
+                log.innerHTML += `<div class="status-item offline">❌ ${sName}: 接続失敗 (スリープ中かも)</div>`;
+            }
+        }
+
+        log.innerHTML += `<div style="color:red; margin-top:10px;">全サーバーが応答しません。</div>`;
+        btn.disabled = false;
+    }
+</script>
+
+</body>
+</html>
